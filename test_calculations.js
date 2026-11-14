@@ -1,6 +1,7 @@
 import { normalizeName, normalizePlayerNo, isDuplicateName, isDuplicatePlayerNo } from './src/utils/normalize.js';
 import { calculateEventStats } from './src/utils/formatting.js';
 import { buildMembersXlsxBytes } from './src/utils/exportExcel.js';
+import { parseMembersCsvText, parseMembersXlsxBytes } from './src/utils/importExcel.js';
 
 console.log('--- RUNNING LOGIC, PLAYER NUMBER & CALCULATION TESTS ---');
 
@@ -95,5 +96,35 @@ if (!decodedXml.includes('ក្រុមខ្មែរតែមួយ') || !de
   throw new Error('Test 5 Failed: Generated Excel workbook missing expected Khmer/player data');
 }
 console.log('✓ Test 5: Team Members Excel (.xlsx) OOXML & Khmer UTF-8 generation passed.');
+
+// Test 6: CSV & XLSX Import Round-Trip Verification
+const sampleCsv = `ក្រុមខ្មែរតែមួយ (KHMER TEAM ONE) - របាយការណ៍បញ្ជីឈ្មោះសមាជិកក្រុម,,,,,,,,,
+"សរុបសមាជិក៖ 44 នាក់",,,,,,,,,
+ល.រ (No.),ឈ្មោះលើអាវ (Jersey Name),ឈ្មោះពេញ (Full Name),លេខអាវ (#),តួនាទី (Position),លេខទូរស័ព្ទ (Phone),Telegram,ឯកសណ្ឋាន (Uniform),កំណត់សម្គាល់ (Notes),កាលបរិច្ឆេទ (Updated)
+19,PANHA REACH,PANHA REACH,#404,-,0968125991,បញ្ចូលរួច (Joined),បានទទួល (Received),,"Nov 14, 2026, 07:59 PM"
+32,SEANG HAI,SEANG HAI,#43,-,-,មិនទាន់បញ្ចូល (-),មិនទាន់មាន (Not Yet),,"Nov 10, 2026, 04:00 PM"
+,សរុបកីឡាករទាំងអស់: 44 នាក់,,,,,40 / 44,37 / 44,,`;
+
+const importedFromCsv = parseMembersCsvText(sampleCsv);
+if (importedFromCsv.length !== 2) {
+  throw new Error(`Test 6 Failed: Expected 2 parsed CSV members, got ${importedFromCsv.length}`);
+}
+if (
+  importedFromCsv[0].jersey_name !== 'PANHA REACH' ||
+  importedFromCsv[0].jersey_number !== '404' ||
+  importedFromCsv[0].phone !== '0968125991' ||
+  importedFromCsv[0].telegram_status !== 'JOINED' ||
+  importedFromCsv[0].uniform_status !== 'RECEIVED' ||
+  importedFromCsv[1].telegram_status !== 'NOT_JOINED' ||
+  importedFromCsv[1].uniform_status !== 'NOT_YET'
+) {
+  throw new Error('Test 6 Failed: Parsed CSV fields mismatch');
+}
+
+const importedFromXlsx = await parseMembersXlsxBytes(xlsxBytes);
+if (importedFromXlsx.length !== 2 || importedFromXlsx[0].jersey_name !== 'PATO' || importedFromXlsx[0].phone !== '012 345 678') {
+  throw new Error('Test 6 Failed: Round-trip XLSX import mismatch');
+}
+console.log('✓ Test 6: CSV & XLSX Team Member import parser verified.');
 
 console.log('--- ALL AUTOMATED LOGIC TESTS PASSED ---');

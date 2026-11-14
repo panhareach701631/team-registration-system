@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { db } from '../services/db';
 import { useLanguage } from '../hooks/useLanguage';
 import { useToast } from '../hooks/useToast';
@@ -8,6 +8,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import ImageWithFallback from '../components/ImageWithFallback';
 import ImageUploader from '../components/ImageUploader';
 import { exportMembersToExcel } from '../utils/exportExcel';
+import { parseMembersUploadFile } from '../utils/importExcel';
 import {
   Users,
   UserPlus,
@@ -26,6 +27,7 @@ import {
   Shield,
   FileText,
   FileSpreadsheet,
+  Upload,
   Camera,
 } from 'lucide-react';
 import { formatDate } from '../utils/formatting';
@@ -63,6 +65,8 @@ export default function TeamMembers() {
   // Profile detail modal state
   const [viewingMember, setViewingMember] = useState(null);
   const [quickPhotoSaving, setQuickPhotoSaving] = useState(false);
+  const [importingExcel, setImportingExcel] = useState(false);
+  const importInputRef = useRef(null);
 
   // Confirm delete dialog state
   const [confirmDialog, setConfirmDialog] = useState({
@@ -227,6 +231,24 @@ export default function TeamMembers() {
     }
   };
 
+  const handleImportExcelFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    setImportingExcel(true);
+    try {
+      const parsedRows = await parseMembersUploadFile(file);
+      const res = await db.importClubMembers(parsedRows);
+      setMembers(res.members);
+      toast.success(`${t('excelImportedToast')} (+${res.created}, ↻${res.updated})`);
+    } catch (err) {
+      toast.error(err?.message || t('errorGeneric'));
+    } finally {
+      setImportingExcel(false);
+    }
+  };
+
   const handleDeleteMember = (member) => {
     setConfirmDialog({
       isOpen: true,
@@ -273,6 +295,24 @@ export default function TeamMembers() {
           >
             <RefreshCw className={`w-3.5 h-3.5 text-[#2563EB] ${loading ? 'animate-spin' : ''}`} />
             <span>{t('refresh')}</span>
+          </button>
+
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            onChange={handleImportExcelFile}
+            className="hidden"
+          />
+
+          <button
+            type="button"
+            onClick={() => importInputRef.current?.click()}
+            disabled={loading || importingExcel}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-[#101C32] bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors shadow-2xs cursor-pointer disabled:opacity-60"
+          >
+            <Upload className="w-4 h-4 text-[#2563EB]" />
+            <span>{importingExcel ? t('importingExcel') : t('importExcelBtn')}</span>
           </button>
 
           <button

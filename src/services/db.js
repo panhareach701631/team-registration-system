@@ -1012,4 +1012,50 @@ export const db = {
       return true;
     }
   },
+
+  async importClubMembers(rows = []) {
+    if (!Array.isArray(rows) || rows.length === 0) {
+      throw new Error('No member rows found in the uploaded file.');
+    }
+
+    const existing = await this.getClubMembers();
+    const existingByName = new Map();
+    existing.forEach((m) => {
+      existingByName.set(normalizeName(m.jersey_name), m);
+    });
+
+    let created = 0;
+    let updated = 0;
+
+    for (const row of rows) {
+      const cleanName = (row.jersey_name || '').trim();
+      if (!cleanName) continue;
+
+      const key = normalizeName(cleanName);
+      const match = existingByName.get(key);
+
+      if (match) {
+        await this.updateClubMember(match.id, {
+          ...match,
+          jersey_name: cleanName,
+          full_name: (row.full_name || match.full_name || cleanName).trim(),
+          jersey_number: row.jersey_number ?? match.jersey_number ?? '',
+          position: row.position || match.position || '',
+          phone: row.phone || match.phone || '',
+          telegram_status: row.telegram_status || match.telegram_status || 'JOINED',
+          uniform_status: row.uniform_status || match.uniform_status || 'RECEIVED',
+          notes: row.notes || match.notes || '',
+          avatar_url: match.avatar_url || '',
+        });
+        updated += 1;
+      } else {
+        const added = await this.createClubMember(row);
+        existingByName.set(key, added);
+        created += 1;
+      }
+    }
+
+    const latest = await this.getClubMembers();
+    return { created, updated, members: latest };
+  },
 };
