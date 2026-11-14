@@ -3,13 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../hooks/useLanguage';
 import { useToast } from '../hooks/useToast';
-import { ShieldCheck, Eye, EyeOff, ArrowRight, AlertCircle, Database, Trophy } from 'lucide-react';
+import { ArrowRight, AlertCircle, Database, Trophy } from 'lucide-react';
 import { db } from '../services/db';
 import LanguageToggle from '../components/LanguageToggle';
 
 export default function AdminLogin() {
   const [accessCode, setAccessCode] = useState('');
-  const [showCode, setShowCode] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { login } = useAuth();
@@ -146,22 +145,14 @@ export default function AdminLogin() {
                   <input
                     id="accessCode"
                     name="accessCode"
-                    type={showCode ? 'text' : 'password'}
+                    type="password"
                     autoComplete="current-password"
                     required
                     value={accessCode}
                     onChange={(e) => setAccessCode(e.target.value)}
                     placeholder={t('accessCodePlaceholder')}
-                    className="block w-full rounded-xl border border-slate-300 bg-[#F8FAFC] py-3 pl-3.5 pr-10 text-xs text-[#101C32] placeholder:text-slate-400 focus:border-[#2563EB] focus:bg-white focus:outline-hidden font-mono transition-colors"
+                    className="block w-full rounded-xl border border-slate-300 bg-[#F8FAFC] py-3 px-3.5 text-xs text-[#101C32] placeholder:text-slate-400 focus:border-[#2563EB] focus:bg-white focus:outline-hidden font-mono transition-colors"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowCode(!showCode)}
-                    aria-label={showCode ? 'Hide access code' : 'Show access code'}
-                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-[#101C32] cursor-pointer"
-                  >
-                    {showCode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
                 </div>
               </div>
 
@@ -183,31 +174,6 @@ export default function AdminLogin() {
                 )}
               </button>
             </form>
-
-            {/* Quick Initial Access Code Box */}
-            <div className="mt-6 pt-5 border-t border-slate-100">
-              <div className="p-3.5 bg-[#F8FAFC] border border-slate-200 rounded-xl text-left">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-[#101C32]">
-                  <ShieldCheck className="w-4 h-4 text-[#2563EB]" />
-                  <span>{t('initialCodeNotice')}</span>
-                </div>
-                <p className="mt-1 text-[11px] text-slate-500 leading-relaxed">
-                  {t('initialCodeDesc')}
-                </p>
-                <div className="mt-2 flex items-center justify-between bg-white px-3 py-2 rounded-lg border border-slate-200">
-                  <code className="text-xs font-mono font-bold text-[#101C32] select-all">
-                    REACH701631
-                  </code>
-                  <button
-                    type="button"
-                    onClick={() => setAccessCode('REACH701631')}
-                    className="text-xs font-bold text-[#2563EB] hover:text-blue-700 transition-colors cursor-pointer"
-                  >
-                    {t('btnFillCode')}
-                  </button>
-                </div>
-              </div>
-            </div>
           </div>
 
           <div className="mt-4 text-center">

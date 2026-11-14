@@ -434,9 +434,11 @@ export const db = {
       });
 
       if (error) handleSupabaseRpcError(error);
+      const eventRecord = Array.isArray(data) ? data[0] : data;
       return {
-        ...data,
-        stats: calculateEventStats(data?.registrations || []),
+        ...eventRecord,
+        registration_token: eventRecord?.registration_token || registration_token,
+        stats: calculateEventStats(eventRecord?.registrations || []),
       };
     } else {
       initLocalStorage();
@@ -504,9 +506,10 @@ export const db = {
       });
 
       if (error) handleSupabaseRpcError(error);
+      const eventRecord = Array.isArray(data) ? data[0] : data;
       return {
-        ...data,
-        stats: calculateEventStats(data?.registrations || []),
+        ...eventRecord,
+        stats: calculateEventStats(eventRecord?.registrations || []),
       };
     } else {
       initLocalStorage();

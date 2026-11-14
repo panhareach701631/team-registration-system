@@ -23,6 +23,19 @@ function crc32(bytes) {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
+function getDosDateTime(date = new Date()) {
+  const year = Math.max(1980, date.getFullYear());
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const hours = date.getHours();
+  const minutes = date.getMinutes();
+  const seconds = Math.floor(date.getSeconds() / 2);
+
+  const modTime = ((hours & 0x1f) << 11) | ((minutes & 0x3f) << 5) | (seconds & 0x1f);
+  const modDate = (((year - 1980) & 0x7f) << 9) | ((month & 0x0f) << 5) | (day & 0x1f);
+  return { modTime, modDate };
+}
+
 /**
  * Builds an uncompressed (STORE) ZIP archive from { name, data } UTF-8 text/byte entries.
  * Produces a valid OOXML .xlsx package readable by Excel, Google Sheets, and LibreOffice.
@@ -31,6 +44,7 @@ function buildZipBytes(files) {
   const encoder = new TextEncoder();
   const localChunks = [];
   const centralChunks = [];
+  const { modTime, modDate } = getDosDateTime(new Date());
   let offset = 0;
 
   files.forEach((file) => {
@@ -38,16 +52,18 @@ function buildZipBytes(files) {
     const dataBytes = typeof file.data === 'string' ? encoder.encode(file.data) : file.data;
     const checksum = crc32(dataBytes);
     const size = dataBytes.length;
+    const hasNonAsciiName = /[^\x20-\x7e]/.test(file.name);
+    const flags = hasNonAsciiName ? 0x0800 : 0x0000;
 
     // Local File Header (30 bytes)
     const localHeader = new ArrayBuffer(30);
     const lv = new DataView(localHeader);
     lv.setUint32(0, 0x04034b50, true); // Local header signature
     lv.setUint16(4, 20, true); // Version needed (2.0)
-    lv.setUint16(6, 0x0800, true); // UTF-8 flag
+    lv.setUint16(6, flags, true);
     lv.setUint16(8, 0, true); // Compression: STORE
-    lv.setUint16(10, 0, true); // Mod time
-    lv.setUint16(12, 0x5421, true); // Mod date
+    lv.setUint16(10, modTime, true);
+    lv.setUint16(12, modDate, true);
     lv.setUint32(14, checksum, true);
     lv.setUint32(18, size, true);
     lv.setUint32(22, size, true);
@@ -62,10 +78,10 @@ function buildZipBytes(files) {
     cv.setUint32(0, 0x02014b50, true); // Central header signature
     cv.setUint16(4, 20, true); // Version made by
     cv.setUint16(6, 20, true); // Version needed
-    cv.setUint16(8, 0x0800, true); // UTF-8 flag
+    cv.setUint16(8, flags, true);
     cv.setUint16(10, 0, true); // Compression: STORE
-    cv.setUint16(12, 0, true); // Mod time
-    cv.setUint16(14, 0x5421, true); // Mod date
+    cv.setUint16(12, modTime, true);
+    cv.setUint16(14, modDate, true);
     cv.setUint32(16, checksum, true);
     cv.setUint32(20, size, true);
     cv.setUint32(24, size, true);
@@ -74,7 +90,7 @@ function buildZipBytes(files) {
     cv.setUint16(32, 0, true); // Comment len
     cv.setUint16(34, 0, true); // Disk number start
     cv.setUint16(36, 0, true); // Internal attributes
-    cv.setUint32(38, 0, true); // External attributes
+    cv.setUint32(38, 0x20, true); // External attributes (archive)
     cv.setUint32(42, offset, true); // Relative offset of local header
 
     centralChunks.push(new Uint8Array(centralHeader), nameBytes);
@@ -118,7 +134,10 @@ function buildZipBytes(files) {
 }
 
 function escapeXml(value) {
-  return String(value ?? '')
+  // Strip invalid XML 1.0 control chars before entity escaping
+  // eslint-disable-next-line no-control-regex
+  const cleaned = String(value ?? '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g, '');
+  return cleaned
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -136,22 +155,55 @@ function colLetter(indexZeroBased) {
   return str;
 }
 
-function inlineCell(ref, styleIdx, text) {
-  return `<c r="${ref}" s="${styleIdx}" t="inlineStr"><is><t xml:space="preserve">${escapeXml(text)}</t></is></c>`;
+function createSharedStrings() {
+  const strings = [];
+  const indexMap = new Map();
+  let totalReferences = 0;
+
+  return {
+    add(value) {
+      const text = String(value ?? '');
+      totalReferences += 1;
+      if (indexMap.has(text)) {
+        return indexMap.get(text);
+      }
+      const idx = strings.length;
+      strings.push(text);
+      indexMap.set(text, idx);
+      return idx;
+    },
+    toXml() {
+      const items = strings
+        .map((s) => `<si><t xml:space="preserve">${escapeXml(s)}</t></si>`)
+        .join('');
+      return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${totalReferences}" uniqueCount="${strings.length}">${items}</sst>`;
+    },
+  };
 }
 
 function numberCell(ref, styleIdx, num) {
   return `<c r="${ref}" s="${styleIdx}"><v>${Number(num)}</v></c>`;
 }
 
+function emptyStyledCell(ref, styleIdx) {
+  return `<c r="${ref}" s="${styleIdx}"/>`;
+}
+
 /**
  * Generates styled OOXML (.xlsx) bytes for the Team Member Directory report.
- * Includes full UTF-8 Khmer + English typography, summary statistics, and color-coded status cells.
+ * Uses standard sharedStrings.xml + strict ECMA-376 SpreadsheetML structure for Excel/Sheets/Mobile compatibility.
  */
 export function buildMembersXlsxBytes(members = [], options = {}) {
   const { lang = 'km', filterSummary = '' } = options;
   const isKm = lang === 'km';
   const generatedStr = formatDate(new Date().toISOString());
+  const sharedStrings = createSharedStrings();
+
+  const stringCell = (ref, styleIdx, text) => {
+    const idx = sharedStrings.add(text);
+    return `<c r="${ref}" s="${styleIdx}" t="s"><v>${idx}</v></c>`;
+  };
 
   const totalCount = members.length;
   const tgJoinedCount = members.filter((m) => m.telegram_status === 'JOINED').length;
@@ -194,24 +246,30 @@ export function buildMembersXlsxBytes(members = [], options = {}) {
 
   const rowsXml = [];
 
-  // Row 1: Title Banner (merged A1:J1)
+  // Row 1: Title Banner (merged A1:J1, include placeholder styled cells for B1:J1)
+  const titleTrailing = Array.from({ length: 9 }, (_, i) =>
+    emptyStyledCell(`${colLetter(i + 1)}1`, 1)
+  ).join('');
   rowsXml.push(
-    `<row r="1" customHeight="1" ht="34">${inlineCell('A1', 1, titleText)}</row>`
+    `<row r="1" spans="1:10" customHeight="1" ht="34">${stringCell('A1', 1, titleText)}${titleTrailing}</row>`
   );
 
-  // Row 2: Summary Stats Banner (merged A2:J2)
+  // Row 2: Summary Stats Banner (merged A2:J2, include placeholder styled cells for B2:J2)
+  const summaryTrailing = Array.from({ length: 9 }, (_, i) =>
+    emptyStyledCell(`${colLetter(i + 1)}2`, 2)
+  ).join('');
   rowsXml.push(
-    `<row r="2" customHeight="1" ht="26">${inlineCell('A2', 2, summaryText)}</row>`
+    `<row r="2" spans="1:10" customHeight="1" ht="26">${stringCell('A2', 2, summaryText)}${summaryTrailing}</row>`
   );
 
   // Row 3: Blank spacer
-  rowsXml.push(`<row r="3" customHeight="1" ht="10"/>`);
+  rowsXml.push(`<row r="3" spans="1:10" customHeight="1" ht="10"/>`);
 
   // Row 4: Table Headers
   const headerCells = headers
-    .map((h, idx) => inlineCell(`${colLetter(idx)}4`, 3, h))
+    .map((h, idx) => stringCell(`${colLetter(idx)}4`, 3, h))
     .join('');
-  rowsXml.push(`<row r="4" customHeight="1" ht="30">${headerCells}</row>`);
+  rowsXml.push(`<row r="4" spans="1:10" customHeight="1" ht="30">${headerCells}</row>`);
 
   // Data Rows (starting at row 5)
   members.forEach((member, index) => {
@@ -241,18 +299,18 @@ export function buildMembersXlsxBytes(members = [], options = {}) {
 
     const cells = [
       numberCell(`A${r}`, 6, index + 1),
-      inlineCell(`B${r}`, baseStyle, member.jersey_name || ''),
-      inlineCell(`C${r}`, baseStyle, member.full_name || member.jersey_name || ''),
-      inlineCell(`D${r}`, 6, jerseyNoDisplay),
-      inlineCell(`E${r}`, baseStyle, member.position || '-'),
-      inlineCell(`F${r}`, baseStyle, member.phone || '-'),
-      inlineCell(`G${r}`, isJoined ? 7 : 8, tgText),
-      inlineCell(`H${r}`, isReceived ? 7 : 8, uniText),
-      inlineCell(`I${r}`, baseStyle, member.notes || ''),
-      inlineCell(`J${r}`, baseStyle, updatedDisplay),
+      stringCell(`B${r}`, baseStyle, member.jersey_name || ''),
+      stringCell(`C${r}`, baseStyle, member.full_name || member.jersey_name || ''),
+      stringCell(`D${r}`, 6, jerseyNoDisplay),
+      stringCell(`E${r}`, baseStyle, member.position || '-'),
+      stringCell(`F${r}`, baseStyle, member.phone || '-'),
+      stringCell(`G${r}`, isJoined ? 7 : 8, tgText),
+      stringCell(`H${r}`, isReceived ? 7 : 8, uniText),
+      stringCell(`I${r}`, baseStyle, member.notes || ''),
+      stringCell(`J${r}`, baseStyle, updatedDisplay),
     ].join('');
 
-    rowsXml.push(`<row r="${r}" customHeight="1" ht="26">${cells}</row>`);
+    rowsXml.push(`<row r="${r}" spans="1:10" customHeight="1" ht="26">${cells}</row>`);
   });
 
   // Grand Total Footer Row
@@ -262,18 +320,18 @@ export function buildMembersXlsxBytes(members = [], options = {}) {
   const uniSummary = `${uniformReceivedCount} / ${totalCount}`;
 
   const footerCells = [
-    inlineCell(`A${footerRowNum}`, 9, ''),
-    inlineCell(`B${footerRowNum}`, 9, footerLabel),
-    inlineCell(`C${footerRowNum}`, 9, ''),
-    inlineCell(`D${footerRowNum}`, 9, ''),
-    inlineCell(`E${footerRowNum}`, 9, ''),
-    inlineCell(`F${footerRowNum}`, 9, ''),
-    inlineCell(`G${footerRowNum}`, 9, tgSummary),
-    inlineCell(`H${footerRowNum}`, 9, uniSummary),
-    inlineCell(`I${footerRowNum}`, 9, ''),
-    inlineCell(`J${footerRowNum}`, 9, ''),
+    emptyStyledCell(`A${footerRowNum}`, 9),
+    stringCell(`B${footerRowNum}`, 9, footerLabel),
+    emptyStyledCell(`C${footerRowNum}`, 9),
+    emptyStyledCell(`D${footerRowNum}`, 9),
+    emptyStyledCell(`E${footerRowNum}`, 9),
+    emptyStyledCell(`F${footerRowNum}`, 9),
+    stringCell(`G${footerRowNum}`, 9, tgSummary),
+    stringCell(`H${footerRowNum}`, 9, uniSummary),
+    emptyStyledCell(`I${footerRowNum}`, 9),
+    emptyStyledCell(`J${footerRowNum}`, 9),
   ].join('');
-  rowsXml.push(`<row r="${footerRowNum}" customHeight="1" ht="28">${footerCells}</row>`);
+  rowsXml.push(`<row r="${footerRowNum}" spans="1:10" customHeight="1" ht="28">${footerCells}</row>`);
 
   const contentTypesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
@@ -282,6 +340,7 @@ export function buildMembersXlsxBytes(members = [], options = {}) {
   <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
   <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
   <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+  <Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>
 </Types>`;
 
   const relsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -291,6 +350,10 @@ export function buildMembersXlsxBytes(members = [], options = {}) {
 
   const workbookXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <fileVersion appName="xl" lastEdited="7" lowestEdited="7" rupBuild="24729"/>
+  <bookViews>
+    <workbookView xWindow="0" yWindow="0" windowWidth="24000" windowHeight="12000"/>
+  </bookViews>
   <sheets>
     <sheet name="Team Members" sheetId="1" r:id="rId1"/>
   </sheets>
@@ -300,18 +363,19 @@ export function buildMembersXlsxBytes(members = [], options = {}) {
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
   <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>
 </Relationships>`;
 
   // Styles: 0=default, 1=title navy, 2=summary light blue, 3=header blue, 4=cell, 5=cell striped, 6=center bold, 7=green badge, 8=amber badge, 9=footer navy
   const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
   <fonts count="6">
-    <font><sz val="11"/><name val="Kantumruy Pro"/><color rgb="FF101C32"/></font>
-    <font><b/><sz val="13"/><name val="Kantumruy Pro"/><color rgb="FFFFFFFF"/></font>
-    <font><b/><sz val="10"/><name val="Kantumruy Pro"/><color rgb="FF101C32"/></font>
-    <font><b/><sz val="11"/><name val="Kantumruy Pro"/><color rgb="FFFFFFFF"/></font>
-    <font><b/><sz val="10"/><name val="Kantumruy Pro"/><color rgb="FF16A34A"/></font>
-    <font><b/><sz val="10"/><name val="Kantumruy Pro"/><color rgb="FFB45309"/></font>
+    <font><sz val="11"/><color rgb="FF101C32"/><name val="Kantumruy Pro"/><family val="2"/></font>
+    <font><b/><sz val="13"/><color rgb="FFFFFFFF"/><name val="Kantumruy Pro"/><family val="2"/></font>
+    <font><b/><sz val="10"/><color rgb="FF101C32"/><name val="Kantumruy Pro"/><family val="2"/></font>
+    <font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Kantumruy Pro"/><family val="2"/></font>
+    <font><b/><sz val="10"/><color rgb="FF16A34A"/><name val="Kantumruy Pro"/><family val="2"/></font>
+    <font><b/><sz val="10"/><color rgb="FFB45309"/><name val="Kantumruy Pro"/><family val="2"/></font>
   </fonts>
   <fills count="8">
     <fill><patternFill patternType="none"/></fill>
@@ -355,9 +419,11 @@ export function buildMembersXlsxBytes(members = [], options = {}) {
 
   const sheetXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <dimension ref="A1:J${footerRowNum}"/>
   <sheetViews>
-    <sheetView workbookViewId="0">
+    <sheetView tabSelected="1" workbookViewId="0">
       <pane ySplit="4" topLeftCell="A5" activePane="bottomLeft" state="frozen"/>
+      <selection pane="bottomLeft" activeCell="A5" sqref="A5"/>
     </sheetView>
   </sheetViews>
   <sheetFormatPr defaultRowHeight="24"/>
@@ -380,6 +446,7 @@ export function buildMembersXlsxBytes(members = [], options = {}) {
     <mergeCell ref="A1:J1"/>
     <mergeCell ref="A2:J2"/>
   </mergeCells>
+  <pageMargins left="0.5" right="0.5" top="0.75" bottom="0.75" header="0.3" footer="0.3"/>
   <pageSetup paperSize="9" orientation="landscape"/>
 </worksheet>`;
 
@@ -389,6 +456,7 @@ export function buildMembersXlsxBytes(members = [], options = {}) {
     { name: 'xl/workbook.xml', data: workbookXml },
     { name: 'xl/_rels/workbook.xml.rels', data: workbookRelsXml },
     { name: 'xl/styles.xml', data: stylesXml },
+    { name: 'xl/sharedStrings.xml', data: sharedStrings.toXml() },
     { name: 'xl/worksheets/sheet1.xml', data: sheetXml },
   ]);
 }
@@ -408,9 +476,11 @@ export function exportMembersToExcel(members = [], options = {}) {
   const link = document.createElement('a');
   link.href = url;
   link.download = filename;
+  link.rel = 'noopener';
+  link.style.display = 'none';
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
 
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
 }

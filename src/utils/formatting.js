@@ -102,6 +102,17 @@ export function calculateEventStats(registrations = []) {
  * Helper to build the full public registration URL
  */
 export function getRegistrationUrl(token) {
-  const baseUrl = import.meta.env.VITE_APP_URL || (typeof window !== 'undefined' ? window.location.origin : '');
-  return `${baseUrl}/register/${token}`;
+  const cleanToken = encodeURIComponent(String(token || '').trim());
+  if (!cleanToken) return '';
+
+  const browserOrigin =
+    typeof window !== 'undefined' &&
+    window.location?.origin &&
+    /^https?:\/\//i.test(window.location.origin)
+      ? window.location.origin
+      : '';
+
+  const envUrl = (import.meta.env?.VITE_APP_URL || '').trim().replace(/\/+$/, '');
+  const baseUrl = (browserOrigin || envUrl).replace(/\/+$/, '');
+  return `${baseUrl}/register/${cleanToken}`;
 }

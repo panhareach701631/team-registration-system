@@ -118,18 +118,14 @@ export default function Sidebar({ isOpen, onClose }) {
           </nav>
         </div>
 
-        {/* Bottom Credentials / Security Notice */}
+        {/* Bottom Security Notice */}
         <div className="p-4 m-3 bg-white/5 border border-white/10 rounded-2xl">
           <div className="flex items-center gap-2 text-xs font-bold text-white">
             <Shield className="w-4 h-4 text-[#2563EB]" />
             <span>{t('adminCredentials')}</span>
           </div>
           <p className="text-[11px] text-slate-300 mt-1.5 leading-relaxed">
-            {t('initialCodeNotice')}:
-            <br />
-            <code className="font-mono bg-[#101C32] px-2 py-0.5 mt-1 inline-block rounded-md border border-white/15 font-bold text-blue-300">
-              REACH701631
-            </code>
+            {t('systemSubtitle')}
           </p>
         </div>
       </aside>
