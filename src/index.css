@@ -1,0 +1,122 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', 'Kantumruy Pro', 'Noto Sans Khmer', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+@layer base {
+  :root {
+    --brand-navy: #101C32;
+    --brand-blue: #2563EB;
+    --brand-bg: #F8FAFC;
+    --brand-success: #16A34A;
+    --brand-danger: #DC2626;
+  }
+
+  html {
+    font-family: 'Inter', 'Kantumruy Pro', 'Noto Sans Khmer', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    text-rendering: optimizeLegibility;
+  }
+
+  html[lang="km"] {
+    font-family: 'Kantumruy Pro', 'Noto Sans Khmer', 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  body {
+    font-family: inherit;
+    background-color: var(--brand-bg);
+    color: var(--brand-navy);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Comfortable spacing for Khmer vowels, subscripts (ជើងអក្សរ), and diacritics */
+  p, span, h1, h2, h3, h4, h5, h6, label, button, input, select, textarea, td, th, li, a {
+    line-height: 1.65;
+  }
+
+  html[lang="km"] p,
+  html[lang="km"] span,
+  html[lang="km"] h1,
+  html[lang="km"] h2,
+  html[lang="km"] h3,
+  html[lang="km"] h4,
+  html[lang="km"] label,
+  html[lang="km"] button,
+  html[lang="km"] input,
+  html[lang="km"] select,
+  html[lang="km"] textarea,
+  html[lang="km"] td,
+  html[lang="km"] th {
+    line-height: 1.72;
+    letter-spacing: 0 !important;
+    font-feature-settings: "kern" 1, "liga" 1;
+  }
+
+  html[lang="km"] .tracking-tight,
+  html[lang="km"] .tracking-wider,
+  html[lang="km"] .tracking-wide {
+    letter-spacing: 0 !important;
+  }
+
+  :focus-visible {
+    outline: 2px solid #2563EB;
+    outline-offset: 2px;
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in {
+  animation: slideInRight 0.2s ease-out forwards;
+}
+
+/* Subtle scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F8FAFC;
+}
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
+/* Print styling for clean A4 report printing */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 14mm;
+  }
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 11pt;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  .print-break-inside-avoid {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
