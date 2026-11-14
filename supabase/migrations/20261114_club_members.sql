@@ -30,7 +30,7 @@ create or replace function admin_get_club_members(p_session_token text)
 returns jsonb
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare
   v_result jsonb;
@@ -61,7 +61,7 @@ create or replace function admin_create_club_member(
 returns jsonb
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare
   v_row club_members%rowtype;
@@ -122,7 +122,7 @@ create or replace function admin_update_club_member(
 returns jsonb
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare
   v_row club_members%rowtype;
@@ -169,7 +169,7 @@ create or replace function admin_delete_club_member(
 returns boolean
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 begin
   perform _assert_admin_session(p_session_token);

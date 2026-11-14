@@ -31,12 +31,16 @@ export default function AdminLogin() {
       const res = await login(accessCode.trim());
       if (res.success) {
         toast.success(t('adminSession') + ' ✓');
-        navigate('/admin/dashboard');
+        navigate('/admin/dashboard', { replace: true });
       } else {
-        setError(res.error || t('errInvalidCode'));
+        const msg = res.error || t('errInvalidCode');
+        setError(msg);
+        toast.error(msg);
       }
-    } catch {
-      setError(t('errConnection'));
+    } catch (err) {
+      const msg = err?.message || t('errConnection');
+      setError(msg);
+      toast.error(msg);
     } finally {
       setIsSubmitting(false);
     }

@@ -44,7 +44,7 @@ create or replace function _assert_admin_session(p_session_token text)
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 begin
   if p_session_token is null or trim(p_session_token) = '' then
@@ -68,7 +68,7 @@ create or replace function verify_admin_code(input_code text)
 returns jsonb
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare
   is_valid boolean;
@@ -112,7 +112,7 @@ create or replace function validate_admin_session(session_token text)
 returns boolean
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 begin
   if session_token is null or trim(session_token) = '' then
@@ -130,7 +130,7 @@ create or replace function admin_logout_session(p_session_token text)
 returns boolean
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 begin
   if p_session_token is not null and trim(p_session_token) <> '' then
@@ -145,7 +145,7 @@ create or replace function get_public_event_by_token(p_token text)
 returns jsonb
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare
   v_event events%rowtype;
@@ -219,7 +219,7 @@ create or replace function submit_member_registration(
 returns jsonb
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare
   v_event events%rowtype;
@@ -320,7 +320,7 @@ create or replace function admin_get_events(p_session_token text)
 returns jsonb
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare
   v_result jsonb;
@@ -383,7 +383,7 @@ create or replace function admin_get_event_by_id(p_session_token text, p_event_i
 returns jsonb
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare
   v_event events%rowtype;
@@ -457,7 +457,7 @@ create or replace function admin_create_event(
 returns jsonb
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare
   v_event_id uuid;
@@ -523,7 +523,7 @@ create or replace function admin_update_event(
 returns jsonb
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare
   v_team jsonb;
@@ -581,7 +581,7 @@ create or replace function admin_set_event_status(
 returns boolean
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 begin
   perform _assert_admin_session(p_session_token);
@@ -605,7 +605,7 @@ create or replace function admin_delete_event(
 returns boolean
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 begin
   perform _assert_admin_session(p_session_token);
@@ -625,7 +625,7 @@ create or replace function admin_update_registration(
 returns jsonb
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare
   v_existing registrations%rowtype;
@@ -700,7 +700,7 @@ create or replace function admin_delete_registration(
 returns boolean
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 begin
   perform _assert_admin_session(p_session_token);

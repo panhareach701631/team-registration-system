@@ -26,17 +26,12 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = useCallback(async (accessCode) => {
-    setIsLoading(true);
-    try {
-      const res = await db.verifyAdminCode(accessCode);
-      if (res.success) {
-        setIsAuthenticated(true);
-        return { success: true };
-      }
-      return { success: false, error: res.error || 'Invalid access code' };
-    } finally {
-      setIsLoading(false);
+    const res = await db.verifyAdminCode(accessCode);
+    if (res.success) {
+      setIsAuthenticated(true);
+      return { success: true };
     }
+    return { success: false, error: res.error || 'Invalid access code' };
   }, []);
 
   const logout = useCallback(async () => {
