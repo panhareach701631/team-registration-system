@@ -881,7 +881,7 @@ export default function EventReport() {
               label={t('playerAvatarOptional')}
               value={editFormData.avatar_url}
               onChange={(url) => setEditFormData((prev) => ({ ...prev, avatar_url: url }))}
-              folder="avatars"
+              folder="players"
               variant="avatar"
             />
 

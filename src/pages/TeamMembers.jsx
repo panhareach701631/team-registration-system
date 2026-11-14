@@ -708,7 +708,7 @@ export default function TeamMembers() {
               label={t('memberPhotoLabel')}
               value={formData.avatar_url}
               onChange={(url) => setFormData((prev) => ({ ...prev, avatar_url: url }))}
-              folder="avatars"
+              folder="players"
               variant="avatar"
             />
 
@@ -912,7 +912,7 @@ export default function TeamMembers() {
               <ImageUploader
                 value={viewingMember.avatar_url}
                 onChange={handleQuickPhotoChange}
-                folder="avatars"
+                folder="players"
                 variant="avatar"
               />
               {quickPhotoSaving && (

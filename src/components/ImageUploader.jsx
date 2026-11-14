@@ -26,11 +26,13 @@ export default function ImageUploader({
   const inputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [uploadError, setUploadError] = useState('');
 
   const handleFileSelect = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setUploadError('');
     setUploading(true);
     setProgress(5);
     try {
@@ -43,7 +45,9 @@ export default function ImageUploader({
       onChange(url);
       toast.success(t('imageUploadedToast'));
     } catch (err) {
-      toast.error(err.message || 'Image upload failed');
+      const msg = err.message || 'Image upload failed';
+      setUploadError(msg);
+      toast.error(msg);
     } finally {
       setUploading(false);
       setTimeout(() => setProgress(0), 300);
@@ -64,7 +68,7 @@ export default function ImageUploader({
       <input
         ref={inputRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp"
+        accept="image/jpeg,image/jpg,image/png,image/webp"
         onChange={handleFileSelect}
         className="hidden"
       />
@@ -178,6 +182,12 @@ export default function ImageUploader({
             )}
           </div>
         </div>
+      )}
+
+      {uploadError && (
+        <p role="alert" className="text-[11px] font-medium text-[#DC2626]">
+          {uploadError}
+        </p>
       )}
 
       {/* Built-in Club Gallery Presets */}
